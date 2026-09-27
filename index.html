@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>難易度MAX高校生SNS (画像＆AI搭載版)</title>
+    <style>
+        body { font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1, h2 { color: #1bc1a1; text-align: center; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input[type="text"], input[type="password"], textarea { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        input[type="file"] { margin-top: 5px; }
+        button { width: 100%; padding: 10px; background: #1bc1a1; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #16a085; }
+        .box { border: 1px solid #e0e0e0; padding: 15px; border-radius: 6px; margin-bottom: 20px; background: #fafafa; }
+        .post { background: white; padding: 12px; border-radius: 6px; border-left: 5px solid #1bc1a1; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: relative; }
+        .post-user { font-weight: bold; color: #555; font-size: 14px; }
+        .post-time { font-size: 11px; color: #999; }
+        .post-img { max-width: 100%; max-height: 300px; border-radius: 6px; margin-top: 10px; display: block; object-fit: contain; background: #fdfdfd; border: 1px solid #eee; }
+        .like-btn { position: absolute; right: 15px; bottom: 10px; background: #e74c3c; color: white; padding: 3px 8px; font-size: 12px; width: auto; }
+        .like-btn:hover { background: #c0392b; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 15px; }
+        .tab-btn { background: #7f8c8d; }
+        .tab-btn.active { background: #1bc1a1; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🚀 超高難易度AI SNS (画像対応)</h1>
+
+    <!-- 1. ログイン / 登録画面 -->
+    <div id="auth-view" class="box">
+        <h2>ログイン・新規登録</h2>
+        <div class="form-group">
+            <label>ユーザー名</label>
+            <input type="text" id="username" placeholder="ユーザー名を入力">
+        </div>
+        <div class="form-group">
+            <label>パスワード</label>
+            <input type="password" id="password" placeholder="パスワードを入力">
+        </div>
+        <button onclick="handleAuth('register')" style="background: #7f8c8d; margin-bottom: 10px;">アカウント新規登録</button>
+        <button onclick="handleAuth('login')">ログインする</button>
+    </div>
+
+    <!-- 2. メイン画面 -->
+    <div id="main-view" class="hidden">
+        <div class="box" style="background: #e8f8f5;">
+            <p>ようこそ、<span id="current-user-name" style="font-weight:bold;"></span> さん！ (ユーザーID: <span id="current-user-id"></span>)</p>
+            <button onclick="logout()" style="background: #e74c3c; width: auto; padding: 5px 10px; font-size: 12px;">ログアウト</button>
+        </div>
+
+        <!-- 画像付き新規投稿 -->
+        <div class="box">
+            <h3>📝 いま何してる？（画像も送れる！）</h3>
+            <div class="form-group">
+                <textarea id="post-content" rows="3" placeholder="投稿内容を入力してください..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>📸 画像を添付（任意）</label>
+                <input type="file" id="post-image" accept="image/*">
+            </div>
+            <button onclick="submitPost()">投稿する</button>
+        </div>
+
+        <!-- フォロー機能 -->
+        <div class="box">
+            <h3>👤 他のユーザーをフォロー</h3>
+            <div class="form-group" style="display: flex; gap: 10px;">
+                <input type="text" id="follow-target-id" placeholder="相手のユーザーID (数字)">
+                <button onclick="followUser()" style="width: 120px;">フォロー</button>
+            </div>
+        </div>
+
+        <!-- タイムライン表示エリア -->
+        <h2>🏠 タイムライン</h2>
+        <div class="tabs">
+            <button id="tab-normal" class="tab-btn active" onclick="switchTab('normal')">👥 フォロー中</button>
+            <button id="tab-ai" class="tab-btn" onclick="switchTab('ai')">✨ AIおすすめ</button>
+        </div>
+        <div id="timeline-box"></div>
+    </div>
+</div>
+
+<script>
+    const API_URL = "http://127.0.0.1:8000";
+    let currentUserId = null;
+    let currentTab = 'normal';
+
+    async function handleAuth(type) {
+        const username = document.getElementById("username").value;
+        const password = document.getElementById("password").value;
+        if(!username || !password) return alert("入力してください");
+
+        const endpoint = type === 'register' ? '/register' : '/login';
+        try {
+            const response = await fetch(API_URL + endpoint, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await response.json();
+            if (!response.ok) return alert("エラー: " + data.detail);
+
+            alert(data.message);
+            if (type === 'login') {
+                currentUserId = data.user_id;
+                document.getElementById("current-user-name").innerText = data.username;
+                document.getElementById("current-user-id").innerText = data.user_id;
+                document.getElementById("auth-view").classList.add("hidden");
+                document.getElementById("main-view").classList.remove("hidden");
+                loadTimeline();
+            }
+        } catch (error) { alert("通信エラー"); }
+    }
+
+    async function submitPost() {
+        const content = document.getElementById("post-content").value;
+        const imageFile = document.getElementById("post-image").files[0];
+        if(!content) return alert("本文を入力してください");
+
+        const formData = new FormData();
+        formData.append("user_id", currentUserId);
+        formData.append("content", content);
+        if (imageFile) {
+            formData.append("image", imageFile);
+        }
+
+        try {
+            const response = await fetch(API_URL + "/posts", {
+                method: "POST",
+                body: formData
+            });
+            if(response.ok) {
+                document.getElementById("post-content").value = "";
+                document.getElementById("post-image").value = "";
+                loadTimeline();
+            }
+        } catch (error) { alert("投稿失敗"); }
+    }
+
+    async function followUser() {
+        const followingId = parseInt(document.getElementById("follow-target-id").value);
+        if(!followingId) return alert("IDを入力してください");
+        try {
+            const response = await fetch(API_URL + "/follow", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ follower_id: currentUserId, following_id: followingId })
+            });
+            const data = await response.json();
+            alert(data.message || data.detail);
+            if(response.ok) loadTimeline();
+        } catch (error) { alert("フォロー失敗"); }
+    }
+
+    async function likePost(postId) {
+        try {
+            const response = await fetch(API_URL + "/likes", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ user_id: currentUserId, post_id: postId })
+            });
+            const data = await response.json();
+            alert(data.message);
+            if(currentTab === 'ai') loadTimeline();
+        } catch (error) { alert("いいね失敗"); }
+    }
+
+    function switchTab(tab) {
+        currentTab = tab;
+        document.getElementById("tab-normal").classList.toggle("active", tab === 'normal');
+        document.getElementById("tab-ai").classList.toggle("active", tab === 'ai');
+        loadTimeline();
+    }
+
+    async function loadTimeline() {
+        const timelineBox = document.getElementById("timeline-box");
+        timelineBox.innerHTML = "読み込み中...";
+
+        const endpoint = currentTab === 'normal' ? `/timeline/${currentUserId}` : `/recommend/${currentUserId}`;
+        try {
+            const response = await fetch(API_URL + endpoint);
+            const posts = await response.json();
+            timelineBox.innerHTML = "";
+
+            if(posts.length === 0) {
+                timelineBox.innerHTML = "<p style='text-align:center; color:#999;'>表示する投稿がありません。</p>";
+                return;
+            }
+
+            posts.forEach(post => {
+                const postDiv = document.createElement("div");
+                postDiv.className = "post";
+                
+                const scoreBadge = post.recommend_score !== undefined && currentTab === 'ai' 
+                    ? `<span style="color:#e67e22; font-size:12px; margin-left:10px;">(AI合致度: ${post.recommend_score})</span>` 
+                    : "";
+
+                const imgTag = post.image_url 
+                    ? `<img src="${API_URL}${post.image_url}" class="post-img" alt="投稿画像">` 
+                    : "";
+
+                postDiv.innerHTML = `
+                    <div class="post-user">@${post.username} ${scoreBadge}</div>
+                    <div style="margin: 5px 0; padding-right: 60px;">${post.content}</div>
+                    ${imgTag}
+                    <div class="post-time" style="margin-top:10px;">${new Date(post.created_at).toLocaleString()}</div>
+                    <button class="like-btn" onclick="likePost(${post.id})">❤️ いいね</button>
+                `;
+                timelineBox.appendChild(postDiv);
+            });
+        } catch (error) { timelineBox.innerHTML = "取得失敗しました"; }
+    }
+
+    function logout() {
+        currentUserId = null;
+        document.getElementById("auth-view").classList.remove("hidden");
+        document.getElementById("main-view").classList.add("hidden");
+    }
+</script>
+</body>
+</html>
